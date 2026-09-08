@@ -32,7 +32,10 @@ reg game_sel_en = 1'b0;
 reg [1:0] game_sel = 2'b00;
 reg is_mbc1 = 1'b0;
 
-// Dynamic Clock Gating: Oscillator stays OFF until game launch reset is triggered
+// Dynamic Clock Gating: Oscillator stays OFF until game launch reset is
+// triggered. is_mbc1 detection below no longer depends on this at all
+// (see GB_CLK-clocked block), so this stays exactly as originally
+// designed for the power saving - no extension needed.
 wire oscena_sig = (start_cmd && !gamestart_flag) || rst_active;
 wire osc_sig;
 
@@ -43,28 +46,6 @@ OSC OSC_inst (
 
 assign RAM_CS2 = 1'b1; 
 assign GB_RST = nRST_reg;
-
-// Single-Driver Asynchronous Sniffer
-// Drops to 0 during a read/write, rises to 1 when the bus goes idle
-wire bus_strobe_up = nGB_WR && GB_RD; 
-
-// 1. Safe Address-Based Mapper Detection (No GB_D bus sniffing)
-// We infer MBC1 if the game accesses MBC1-specific control ranges during initialization
-always @(posedge bus_strobe_up) begin
-    if (rst_active) begin
-        // Keep current state or reset safely on reboot
-    end else begin
-        // If a write hits specific MBC1 control boundaries while running, 
-        // or we can latch based on a known signature write during boot:
-        if (!nGB_WR) begin
-            // MBC1 games commonly initialize the banking mode via 0x4000-0x5FFF writes early on
-            if (GB_A >= 16'h4000 && GB_A <= 16'h5FFF) begin
-                // If it exhibits MBC1 register behavior, flag it
-                // (You can tune this condition based on your Kirby ROM's initial writes)
-            end
-        end
-    end
-end
 
 // Memory mapped range enables
 wire rom_addr_en = (GB_A <= 16'h7FFF);
@@ -105,7 +86,10 @@ assign ROM_A[19:14] = rom_a_pre[19:14];
 assign RAM_A[16:15] = (game_sel_en) ? game_sel[1:0] : ram_a_pre[16:15];
 assign RAM_A[14:13] = ram_a_pre[14:13];
 
-// Direct register write block
+// Direct register write block - driven directly by the real write
+// strobe, so it works regardless of oscillator gating state.
+// (is_mbc1 is NOT touched anywhere in this block anymore - see the
+// single GB_CLK-clocked block below, which is now its sole owner.)
 always @(posedge nGB_WR) begin
     if (GB_A <= 16'h1FFF) begin
         ram_en <= (GB_D[3:0] == 4'hA);
@@ -141,6 +125,35 @@ always @(posedge nGB_WR) begin
 
     if (GB_A == 16'h4000 && ram_bank[4] == 1'b1 && game_sel_en == 1'b1) begin
         start_cmd <= 1'b1;
+    end
+end
+
+// Mapper auto-detect - SOLE owner of is_mbc1, clocked entirely off
+// GB_CLK (the console's own bus clock, an existing but previously
+// unused input pin - NOT the CPLD's internal gated OSC). GB_CLK ticks
+// continuously during any real bus activity - reads, writes, or
+// flashing - regardless of the internal oscillator's power-gating
+// state, so this works reliably in every scenario without needing to
+// extend the internal oscillator's on-time at all.
+//
+// Levels of nGB_WR/GB_RD are sampled here (not their edges), which is
+// safe because GB_CLK ticks many times faster than a single read/write
+// pulse lasts, guaranteeing at least one sample lands while the pulse
+// is active.
+always @(posedge GB_CLK) begin
+    if (!nGB_WR && GB_A == 16'h2AAA) begin
+        // Flasher escape hatch: force MBC5 mode any time a flash-unlock
+        // write is in progress.
+        is_mbc1 <= 1'b0;
+    end else if (!GB_RD && GB_A == 16'h0147) begin
+        // Header-byte snoop: watches for the console's OWN boot-ROM
+        // checksum read at the cart-type byte - happens on every real
+        // boot with zero cooperation needed from menu or flasher firmware.
+        if (GB_D == 8'h01 || GB_D == 8'h02 || GB_D == 8'h03) begin
+            is_mbc1 <= 1'b1;
+        end else begin
+            is_mbc1 <= 1'b0;
+        end
     end
 end
 
