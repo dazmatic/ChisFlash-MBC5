@@ -169,19 +169,25 @@ wire rst_clk_sync = rst_sync[1];
 
 always @(posedge osc_sig) begin
     if (rst_clk_sync && !rst_active && !gamestart_flag) begin
-        rst_active  <= 1'b1;   
-        rst_counter <= 17'b0;  
-        nRST_reg    <= 1'b0; 
+        rst_active     <= 1'b1;   
+        rst_counter    <= 17'b0;  
+        nRST_reg       <= 1'b0;   // Phase 1: Actively drive LOW for ~20ms
     end else if (rst_active) begin
-        if (rst_counter >= 17'd110000) begin 
-            nRST_reg       <= 1'bz; 
-            rst_active     <= 1'b0; 
+        if (rst_counter >= 17'd110000 && rst_counter < 17'd112000) begin 
+            // Phase 2: Actively drive HIGH briefly to push-charge the 1uF capacitor
+            nRST_reg     <= 1'b1; 
+            rst_counter  <= rst_counter + 1'b1;
+        end else if (rst_counter >= 17'd112000) begin
+            // Phase 3: Now that the line is fully charged, safely float to High-Z (Z)
+            nRST_reg     <= 1'bz; 
+            rst_active   <= 1'b0; 
             gamestart_flag <= 1'b1;
         end else begin
-            rst_counter <= rst_counter + 1'b1; 
+            nRST_reg     <= 1'b0;   // Keep holding low during the rest window
+            rst_counter  <= rst_counter + 1'b1; 
         end
     end else begin
-        rst_counter <= rst_counter;
+        nRST_reg <= nRST_reg;
     end
 end
 
