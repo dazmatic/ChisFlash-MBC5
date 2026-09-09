@@ -92,6 +92,7 @@ See [docs/compatibility.md](docs/compatibility.md) for more information.
 - `2024-11-28`: Updated the standard `v1.2` and enhanced `v1.2` versions; disconnected `RST` from the NOR flash and pulled it high, enabling programming using an `NDS`
 - `2024-12-19`: Updated the standard `v1.21`, enlarging the negative battery terminal solder pad; updated the enhanced `v1.21`, adding compatible resistor-network pads and enlarging the negative battery terminal solder pad
 - `2025-02-26`: Updated the `1.2` firmware; the `8M` version now supports `3-in-1 (1+2+4)`, `4-in-1 (1+2+2+2)`, and single-cartridge configurations
+- '2026-09-09': Updated the 1.2 version of the firmware to include MBC1 compatibility (tested Kirby and SML2) and improved the reset logic as on some carts the reset line was being held low by the level translators before entering a high Z state meaning the console never completed a full reset on selection of a game. CPLD now pulls reset line high briefly before going high Z to fully complete a reset cycle. Internal oscillator is now also gated to improve power consumption (measured approximately 6-8mA current draw difference at 3V input voltage)
 
 ## Acknowledgements and Related Projects
 
@@ -102,6 +103,7 @@ See [docs/compatibility.md](docs/compatibility.md) for more information.
 - Cartridge programmer designed specifically for GBA, `ChisLink`: https://github.com/ChisBread/ChisLink
 - Programmer for ChisFlash, `beggar_socket`: https://github.com/julpage/beggar_socket
 - `beggar_socket` web application: https://github.com/tautcony/beggar_socket
+- -dazmatic for improvements to 1.2 8mb firmware
 
 ## Images
 
