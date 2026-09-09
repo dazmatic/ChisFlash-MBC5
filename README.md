@@ -26,6 +26,7 @@ The project is based on the open-source `NekoCart-GB` project. The PCB and schem
 - The `8M` version supports `single cartridge / 3-in-1 / 4-in-1`
 - The `MAX` version supports `16-in-1`
 - Can be programmed using `gbcburn` on an NDS, reducing the need to purchase a separate programmer
+- Additional power saving mode, MBC1 support and improve reset functionality.
 
 ## Documentation Index
 
